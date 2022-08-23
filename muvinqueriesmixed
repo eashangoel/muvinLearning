@@ -1,0 +1,227 @@
+-----Muvin load overall with less select conditions
+  select type  from wallets."transaction" t 
+where
+  (txn_date  at time zone 'Asia/Calcutta')::date = '2022-07-14'
+  --and lower(type)= 'fees'
+  --AND status IN ('COMPLETED','REFUND_PROCESSED')
+ --and from_wallet_id IN ('0e7d18ad-074e-416f-8a96-b860c39a0c47'/*, 'ec9dc67a-4d77-4a93-9335-1880ca6e6108'*/)
+  
+  select * from wallets."transaction" t 
+  where from_wallet_id in ('c0a88166-818c-1ba3-8181-8c6a239d00f4',
+'c0a88166-818c-1ba3-8181-8c7a909e0171',
+'c0a88166-818c-1ba3-8181-8c7c13110176', 
+'c0a88166-818c-1ba3-8181-8c7c777d0179',
+'c0a88166-818c-1ba3-8181-8c8869b90221',
+'c0a88166-818c-1ba3-8181-8c91403c0248')
+ and (txn_date  at time zone 'Asia/Calcutta')::date between '2022-06-01' and '2022-08-31'
+
+   
+--  and (txn_date  at time zone 'Asia/Calcutta')::date between '2022-06-01' and '2022-08-31'
+  
+
+  
+  
+  select status , count( * )from wallets.wallet 
+  group by status
+  
+  select count(*) from wallets.wallet w
+  
+  select * from wallets.wallet_account wa
+  
+  select * from wallets.
+  
+  select count(*) from wallets.card c join wallets.wallet w
+  on c.wallet_id = w.id
+  where physical_card_status= 'ACTIVE'
+  and card_type = 'PHYSICAL'
+
+
+  select * from wallets.ops_card_request ocr 
+
+  select *
+  from wallets.kyc_details kd 
+  
+  select * from user_accounts.users u 
+
+
+  -----Muvin load overall with less select conditions
+  
+  select txn_date, description, type, direction , amount, external_txn_id from wallets."transaction" t 
+where
+  ( txn_date at time zone 'Asia/Calcutta')::date = '2022-07-04'
+    and  type IN ('LOAD', 'REFUND', 'M2C')
+    AND status IN ('COMPLETED','REFUND_PROCESSED')
+    and from_wallet_id IN ('0e7d18ad-074e-416f-8a96-b860c39a0c47'/*, 'ec9dc67a-4d77-4a93-9335-1880ca6e6108'*/)
+
+--------------------
+    
+--muvin load with selected (commented) columns
+ SELECT
+    /*date(txn_date) rz_date,
+    date(COALESCE(completedAt,txn_date)) m2p_date,
+    wallet_issuer_id,
+    SUM(amount) loads,
+    SUM(CASE WHEN status NOT IN ('REFUND_PROCESSED') THEN amount END) loads_completed,
+    SUM(charges) as charges*/
+ *
+FROM
+    (
+    SELECT
+        wt.amount AS amount,
+        (wt.charge_amt + wt.charge_tax_amt) AS charges,
+        wt.total_amount AS total_amount,
+        wt.wallet_issuer_id,
+        wt.status,
+       wt.external_txn_id
+    FROM
+        wallets.transaction wt
+    LEFT JOIN
+        payments.payment_ledger pl
+    ON
+        wt.accounting_ledger_id = pl.id
+    LEFT JOIN
+        wallets.wallet w
+    ON
+        wt.FROM_wallet_id = w.id
+    WHERE
+        wt.type IN ('LOAD', 'REFUND', 'M2C')
+    AND wt.status IN ('COMPLETED','REFUND_PROCESSED')
+    and from_wallet_id IN ('0e7d18ad-074e-416f-8a96-b860c39a0c47'/*, 'ec9dc67a-4d77-4a93-9335-1880ca6e6108'*/)
+    and ( COALESCE(wt.completed_at, txn_date)  at time zone 'Asia/Calcutta')::date = '2022-07-04'
+    )  as records
+
+--experimental difference between muvin load and razorpay 
+   --------------------------------------------------------------
+     SELECT
+        wt.amount AS amount,
+        (wt.charge_amt + wt.charge_tax_amt) AS charges,
+        wt.total_amount AS total_amount,
+        date(wt.txn_date) AS txn_date,
+        date(wt.completed_at) as completedAt,
+        pl.gateway_payment_id
+     
+    FROM
+        wallets.transaction wt
+    LEFT JOIN
+        payments.payment_ledger pl
+    ON
+        wt.accounting_ledger_id = pl.id
+    LEFT JOIN
+        wallets.wallet w
+    ON
+        wt.FROM_wallet_id = w.id
+    where
+    from_wallet_id IN ('0e7d18ad-074e-416f-8a96-b860c39a0c47'/*, 'ec9dc67a-4d77-4a93-9335-1880ca6e6108'*/)
+    and wt.status not in ('FAILED', 'INITIATED', 'PAYMENT_ATTACHED')
+    and ( txn_date at time zone 'Asia/Calcutta')::date = '2022-07-11'
+    and pl.gateway_payment_id not in
+    (
+    SELECT
+    *
+FROM
+    (
+    SELECT
+         pl.gateway_payment_id 
+    from
+        wallets.transaction wt
+    LEFT JOIN
+        payments.payment_ledger pl
+    ON
+        wt.accounting_ledger_id = pl.id
+    LEFT JOIN
+        wallets.wallet w
+    ON
+        wt.FROM_wallet_id = w.id
+    WHERE
+        wt.type IN ('LOAD', 'REFUND', 'M2C')
+    AND wt.status IN ('COMPLETED','REFUND_PROCESSED')
+    and from_wallet_id IN ('0e7d18ad-074e-416f-8a96-b860c39a0c47'/*, 'ec9dc67a-4d77-4a93-9335-1880ca6e6108'*/)
+    and ( txn_date at time zone 'Asia/Calcutta')::date = '2022-07-11'
+    )  as records
+  
+    
+    intersect
+    
+    SELECT
+    pl.gateway_payment_id 
+FROM
+    reports.razorpay_payments_v2 rz
+LEFT JOIN
+    payments.payment_ledger pl
+ON
+    rz.id = pl.gateway_payment_id
+LEFT JOIN
+    wallets.transaction wt
+ON
+    pl.id = wt.accounting_ledger_id
+LEFT JOIN
+    wallets.product_orders po
+ON
+    rz.order_id = po.payment_ref_id
+WHERE
+    po.payment_ref_id IS NULL
+AND UPPER(rz.status) in ('CAPTURED')
+--AND wt.type = 'LOAD'
+AND from_wallet_id IN ('0e7d18ad-074e-416f-8a96-b860c39a0c47'/*, 'ec9dc67a-4d77-4a93-9335-1880ca6e6108'*/)
+and date(rz.created_at + interval '5' hour + interval '30' minute) = '2022-07-11'
+
+
+--m2p load 
+SELECT
+   "Txn Date" , "Corporate Name" , "Amount" , "Other Party Id" , "Other Party Name", "Description" , "TransactionType" 
+FROM
+    reports.lq_transactions_v2
+WHERE
+ "Corporate Name" =  'LQMUVIN'
+ and "TransactionType" = 'LOAD'
+ and "Description" not like '%CBACK%' 
+ and "Description" not like '%reward%'
+--and "Ext Txn Id"  = '22080546316'
+ and ("Txn Date"::timestamp)::date = '2022-05-29'
+ 
+
+ --rzp query 
+ SELECT
+    date(rz.created_at + interval '5' hour + interval '30' minute) date,
+    wt.wallet_issuer_id,
+    SUM(rz.amount/100) amount,
+    SUM(rz.fee/100) fee,
+    SUM(rz.tax/100) tax
+FROM
+    reports.razorpay_payments_v2 rz
+LEFT JOIN
+    payments.payment_ledger pl
+ON
+    rz.id = pl.gateway_payment_id
+LEFT JOIN
+    wallets.transaction wt
+ON
+    pl.id = wt.accounting_ledger_id
+LEFT JOIN
+    wallets.product_orders po
+ON
+    rz.order_id = po.payment_ref_id
+WHERE
+    po.payment_ref_id IS NULL
+AND UPPER(rz.status) in ('CAPTURED')
+AND wt.type = 'LOAD'
+AND from_wallet_id IN ('0e7d18ad-074e-416f-8a96-b860c39a0c47', 'ec9dc67a-4d77-4a93-9335-1880ca6e6108')
+GROUP BY 1,2
+
+--users with wallets that dont transaction (without email)
+select *  from wallets.wallet w  
+where
+  lower(status) like '%created%'
+  and (created_on at time zone 'Asia/Calcutta')::date >= '2022-06-01' 
+  and (created_on at time zone 'Asia/Calcutta')::date < '2022-09-01'
+  and wallet_issuer_id = '3'
+  and EXTRACT(YEAR FROM age(dob)) < 25
+  and id not in
+  ( select distinct from_wallet_id from wallets."transaction" t2  
+  where 
+  (txn_date  at time zone 'Asia/Calcutta')::date >= '2022-06-01' 
+  and (txn_date  at time zone 'Asia/Calcutta')::date < '2022-09-01'
+  AND lower(type) in ('pos', 'ecom'))
+
+
+
